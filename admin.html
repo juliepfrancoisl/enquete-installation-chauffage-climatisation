@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Administration — Enquête logement & foyer</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --card: #ffffff;
+    --text: #1f2430;
+    --muted: #6b7280;
+    --border: #dde1e7;
+    --accent: #2563eb;
+    --accent-hover: #1d4ed8;
+    --error: #dc2626;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px 16px 64px;
+  }
+  .wrap { max-width: 1000px; margin: 0 auto; }
+  h1 { font-size: 1.4rem; margin-bottom: 4px; }
+  .subtitle { color: var(--muted); margin-bottom: 24px; font-size: 0.9rem; }
+
+  #loginPanel {
+    max-width: 360px;
+    margin: 60px auto;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+  }
+  #loginPanel .field { margin-bottom: 14px; }
+  #loginPanel label { display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 6px; }
+  #loginPanel input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.9rem;
+  }
+  #loginPanel button {
+    width: 100%;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 11px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 4px;
+  }
+  #loginPanel button:hover { background: var(--accent-hover); }
+  #loginError { color: var(--error); font-size: 0.85rem; margin-top: 10px; display: none; }
+
+  #dashboard { display: none; }
+  .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .toolbar .count { color: var(--muted); font-size: 0.9rem; }
+  button.secondary {
+    background: #fff;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+  }
+  button.secondary:hover { background: #f1f3f5; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    font-size: 0.85rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  th {
+    background: #f8fafc;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    font-size: 0.72rem;
+    letter-spacing: 0.03em;
+  }
+  tr:last-child td { border-bottom: none; }
+  .empty { text-align: center; color: var(--muted); padding: 40px; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+
+    <div id="loginPanel">
+      <h1>Accès administrateur</h1>
+      <p class="subtitle">Connexion réservée à l'administrateur de l'enquête.</p>
+      <div class="field">
+        <label for="loginEmail">Email</label>
+        <input type="email" id="loginEmail" autocomplete="username">
+      </div>
+      <div class="field">
+        <label for="loginPassword">Mot de passe</label>
+        <input type="password" id="loginPassword" autocomplete="current-password">
+      </div>
+      <button id="loginBtn">Se connecter</button>
+      <div id="loginError"></div>
+    </div>
+
+    <div id="dashboard">
+      <h1>Réponses reçues</h1>
+      <p class="subtitle">Enquête logement & foyer — vue privée, accès restreint (RLS Supabase).</p>
+      <div class="toolbar">
+        <span class="count" id="count"></span>
+        <button class="secondary" id="logoutBtn">Se déconnecter</button>
+      </div>
+      <div id="tableContainer"></div>
+    </div>
+
+  </div>
+
+<script>
+  const loginPanel = document.getElementById("loginPanel");
+  const dashboard = document.getElementById("dashboard");
+  const loginBtn = document.getElementById("loginBtn");
+  const logoutBtn = document.getElementById("logoutBtn");
+  const loginError = document.getElementById("loginError");
+  const tableContainer = document.getElementById("tableContainer");
+  const countEl = document.getElementById("count");
+
+  let supabase = null;
+  const configured = window.supabase && typeof SUPABASE_URL !== "undefined" && !SUPABASE_URL.includes("VOTRE-PROJET");
+  if (configured) {
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  }
+
+  function renderTable(rows) {
+    if (!rows.length) {
+      tableContainer.innerHTML = '<div class="empty">Aucune réponse pour le moment.</div>';
+      countEl.textContent = "";
+      return;
+    }
+    countEl.textContent = rows.length + " réponse(s)";
+    const headers = ["Date", "Personnes", "Enfants", "Logement", "Code postal", "Revenu", "Commentaire"];
+    let html = "<table><thead><tr>" + headers.map(h => `<th>${h}</th>`).join("") + "</tr></thead><tbody>";
+    for (const r of rows) {
+      html += `<tr>
+        <td>${new Date(r.created_at).toLocaleString("fr-FR")}</td>
+        <td>${r.nb_personnes}</td>
+        <td>${r.nb_enfants}</td>
+        <td>${r.type_logement}</td>
+        <td>${r.code_postal}</td>
+        <td>${r.tranche_revenu}</td>
+        <td>${r.commentaire ? r.commentaire.replace(/</g, "&lt;") : ""}</td>
+      </tr>`;
+    }
+    html += "</tbody></table>";
+    tableContainer.innerHTML = html;
+  }
+
+  async function loadResponses() {
+    if (supabase) {
+      const { data, error } = await supabase
+        .from("reponses_menages")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) {
+        tableContainer.innerHTML = `<div class="empty">Erreur de chargement : ${error.message}</div>`;
+        return;
+      }
+      renderTable(data);
+    } else {
+      // Mode démo : lit les réponses stockées localement par index.html
+      const data = JSON.parse(localStorage.getItem("reponses_menages_demo") || "[]")
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      renderTable(data);
+    }
+  }
+
+  function showDashboard() {
+    loginPanel.style.display = "none";
+    dashboard.style.display = "block";
+    loadResponses();
+  }
+
+  function showLogin() {
+    loginPanel.style.display = "block";
+    dashboard.style.display = "none";
+  }
+
+  loginBtn.addEventListener("click", async () => {
+    loginError.style.display = "none";
+    const email = document.getElementById("loginEmail").value.trim();
+    const password = document.getElementById("loginPassword").value;
+
+    if (!supabase) {
+      // Mode démo sans Supabase configuré : accès direct au dashboard local
+      showDashboard();
+      return;
+    }
+
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      loginError.textContent = "Connexion refusée : " + error.message;
+      loginError.style.display = "block";
+      return;
+    }
+    showDashboard();
+  });
+
+  logoutBtn.addEventListener("click", async () => {
+    if (supabase) await supabase.auth.signOut();
+    showLogin();
+  });
+
+  // Si une session existe déjà (rechargement de page), rester connecté
+  (async () => {
+    if (supabase) {
+      const { data } = await supabase.auth.getSession();
+      if (data.session) showDashboard();
+    }
+  })();
+</script>
+</body>
+</html>
