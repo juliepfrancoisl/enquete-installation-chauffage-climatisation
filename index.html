@@ -171,10 +171,10 @@
     msg.className = "msg " + type;
   }
 
-  let supabase = null;
+  let supabaseClient = null;
   try {
     if (window.supabase && !SUPABASE_URL.includes("VOTRE-PROJET")) {
-      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     }
   } catch (e) {
     console.warn("Supabase non configuré, mode démo local activé.", e);
@@ -196,8 +196,8 @@
     };
 
     try {
-      if (supabase) {
-        const { error } = await supabase.from("reponses_menages").insert([payload]);
+      if (supabaseClient) {
+        const { error } = await supabaseClient.from("reponses_menages").insert([payload]);
         if (error) throw error;
         showMsg("Merci, vos réponses ont bien été enregistrées.", "success");
       } else {

@@ -139,10 +139,10 @@
   const tableContainer = document.getElementById("tableContainer");
   const countEl = document.getElementById("count");
 
-  let supabase = null;
+  let supabaseClient = null;
   const configured = window.supabase && typeof SUPABASE_URL !== "undefined" && !SUPABASE_URL.includes("VOTRE-PROJET");
   if (configured) {
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   }
 
   function renderTable(rows) {
@@ -170,8 +170,8 @@
   }
 
   async function loadResponses() {
-    if (supabase) {
-      const { data, error } = await supabase
+    if (supabaseClient) {
+      const { data, error } = await supabaseClient
         .from("reponses_menages")
         .select("*")
         .order("created_at", { ascending: false });
@@ -204,13 +204,13 @@
     const email = document.getElementById("loginEmail").value.trim();
     const password = document.getElementById("loginPassword").value;
 
-    if (!supabase) {
+    if (!supabaseClient) {
       // Mode démo sans Supabase configuré : accès direct au dashboard local
       showDashboard();
       return;
     }
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
     if (error) {
       loginError.textContent = "Connexion refusée : " + error.message;
       loginError.style.display = "block";
@@ -220,14 +220,14 @@
   });
 
   logoutBtn.addEventListener("click", async () => {
-    if (supabase) await supabase.auth.signOut();
+    if (supabaseClient) await supabaseClient.auth.signOut();
     showLogin();
   });
 
   // Si une session existe déjà (rechargement de page), rester connecté
   (async () => {
-    if (supabase) {
-      const { data } = await supabase.auth.getSession();
+    if (supabaseClient) {
+      const { data } = await supabaseClient.auth.getSession();
       if (data.session) showDashboard();
     }
   })();
