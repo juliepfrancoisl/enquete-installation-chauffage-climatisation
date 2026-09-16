@@ -197,7 +197,7 @@
 
     try {
       if (supabaseClient) {
-        const { error } = await supabaseClient.from("reponses_menages").insert([payload]);
+        const { error } = await supabaseClient.from("reponses_menages").insert([payload], { returning: "minimal" });
         if (error) throw error;
         showMsg("Merci, vos réponses ont bien été enregistrées.", "success");
       } else {
